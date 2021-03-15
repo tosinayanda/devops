@@ -12,13 +12,19 @@ https://adamtheautomator.com/powershell-check-if-file-exists/
 ####
 ## Declare Arguments
 ####
-param ([string]$connectionString,[string]$serverName,[string]$databaseName,[string]$backupLocation,[string]$backupFileName)
+param ([string]$connectionString,
+       [string]$serverName= $CPU,
+       [string]$databaseName,
+       [string]$backupLocation=$DEFAULT_BACKUP_LOCATION,
+       [string]$backupFileName=$DEFAULT_BACKUP_FILENAME)
 
 ####
 ## Declare Global Variables
 ####
 $CPU = $env:COMPUTERNAME
 $DEPENDENCIES = @('SqlServer','Write-Log')
+$DEFAULT_BACKUP_LOCATION = 'C:\db\backup'
+$DEFAULT_BACKUP_FILENAME = "backup.bak"
 
 ####
 ## Declare Functions
@@ -179,13 +185,20 @@ Verify-BackupLocationExists -path "C:\logs"
 !(Verify-BackupLocationExists -path "C:\lbus")
 #>
 
-if((Verify-ServerExistsAndReachable -a "QADH10TSLT14675") -ne $true)
+#Provide Computer Name as Default Value For Server, If Empty
+#if(($serverName -eq '.') -or ($serverName -eq ''))
+if(([string]::IsNullOrEmpty($serverName)) -or ($serverName -eq '.'))
 {
-    write-host -ForegroundColor Red "Server is not Reachable"    
+    $serverName = $CPU;
 }
-elseif((Verify-BackupLocationExists -path "C:\logs") -ne $true)
+
+if((Verify-ServerExistsAndReachable -a $serverName) -ne $true)
 {
-    write-host -ForegroundColor Red "Backup Path Does Not exist"    
+    write-host -ForegroundColor Red "Server $serverName is not Reachable"    
+}
+elseif((Verify-BackupLocationExists -path $backupPath) -ne $true)
+{
+    write-host -ForegroundColor Red "Backup $backupPath Path Does Not exist"    
 }
 # Perform Backup
 else
@@ -193,10 +206,14 @@ else
     write-host -ForegroundColor Yello "Starting Backup"
     #Backup-SqlDatabase -ServerInstance "." -Database "testdb" -BackupFile "c:\sql\testDB.bak"
     $extension = ".bak"
-    $backupPath = $backupLocation +$backupFileName+$extension
+    $backupPath=''
+    $backupPath = "$backupLocation$backupFileName$extension"
+
+     # Check If File With Matching Name Found
     if(Test-Path -Path $backupPath -PathType Leaf)
     {
-        $currentTimeStamp = Get-Date -Format "dddd MM-dd-yyyy HH:mm K"
+        # Rename Old Backup File
+        $currentTimeStamp = Get-Date -Format "MM-dd-yyyy HH:mm:ss"
         $renamedPath = $backupPath.Replace($extension,$currentTimeStamp +$extension)
         Rename-Item -Path $backupPath -NewName $renamedPath
     }
